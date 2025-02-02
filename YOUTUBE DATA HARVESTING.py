@@ -1,550 +1,572 @@
-
 from googleapiclient.discovery import build
 import pymongo
 import psycopg2
 import pandas as pd
 import streamlit as st
 
-#API KEY CONNECTION
 
-def Api_connect():
-    Api_Id="AIzaSyA3q5bk8hDwoLryx6ZvioCPQd1JmA6pWGM"
+#Function for API connection
 
-    api_service_name="youtube"
-    api_version="v3"
+def Api_Connection():
+    Api_id = "AIzaSyDalbbE6DWKVCtTdxbUdfALlCepnRnYwK8"
+    ApiServiceName = "YouTube"
+    ApiVersion = "v3"
+    
+    YouTube_data = build(ApiServiceName,ApiVersion,developerKey = Api_id)
+    
+    return YouTube_data
+YouTube =  Api_Connection()
 
-    youtube=build(api_service_name,api_version,developerKey=Api_Id)
+#function to get Channel details
 
-    return youtube
+def YouTubeChannel_Id(Channel_id):
+    request = YouTube.channels().list(
+        part = "contentDetails,snippet,statistics",
+        id = Channel_id
 
-youtube=Api_connect()
-
-
-#GET CHANNAL INFORMATION
-def get_channel_info(channel_id):
-    request=youtube.channels().list(
-                part="snippet,contentDetails,statistics",
-                id=channel_id
-    )
+        )
     response=request.execute()
-
     for i in response['items']:
-        data=dict(Channel_Name=i["snippet"]["title"],
-                 Channel_Id=i["id"],
-                 Subscribers=i["statistics"]["subscriberCount"],
-                 Views=i["statistics"]["viewCount"],
-                  Total_Videos=i["statistics"]["videoCount"],
-                  Channel_Description=i["snippet"]["description"],
-                  Playlist_Id=i["contentDetails"]["relatedPlaylists"]["uploads"])
-    return data   
-       
-#get video ids
-def get_videos_ids(channel_id):
-    video_ids=[]
-    response=youtube.channels().list(id=channel_id,
-                                    part='contentDetails').execute()
-    Playlist_Id=response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+        needed_data=dict(Channel_Name=i['snippet']['title'],
+               Channel_Id=i['id'],
+               Subscription_Count=i['statistics']['subscriberCount'],
+               Channel_Views=i['statistics']['viewCount'],
+               Channel_Description=i['snippet']['description'],
+               Playlist_Id=i['contentDetails']['relatedPlaylists']['uploads'],
+               Total_Videos=i['statistics']['videoCount']
+               )
+    return needed_data
 
-    next_page_token=None
+
+#Function to get videoids
+
+def IdsofVideo(Channel_id):
+    VideoIds = []
+
+    response1 = YouTube.channels().list(id = Channel_id,
+                                    part = "contentDetails").execute()
+
+    Playlist_Id=response1['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+
+    nextpagevideos = None
 
     while True:
-        response1=youtube.playlistItems().list(
-                                            part='snippet',
-                                            playlistId=Playlist_Id,
-                                            maxResults=50,
-                                            pageToken=next_page_token).execute()
-        for i in range(len(response1['items'])):
-            video_ids.append(response1['items'][i]['snippet']['resourceId']['videoId'])
-        next_page_token=response1.get('nextPageToken')
 
-        if next_page_token is None:
+        response2 = YouTube.playlistItems().list(part="snippet", 
+                                                playlistId = Playlist_Id,
+                                                maxResults=50,
+                                                pageToken=nextpagevideos)
+
+        Playlist_Details = response2.execute()
+
+        for i in range(len(Playlist_Details['items'])):
+            VideoIds.append(Playlist_Details['items'][i]['snippet']['resourceId']['videoId'])
+            
+        
+        nextpagevideos = Playlist_Details.get('nextPageToken')
+        
+        if nextpagevideos is None:
             break
-    return video_ids
+    return VideoIds
 
 
-#get video information
-def get_video_info(video_ids):
-    video_data=[]
-    for video_id in video_ids:
-        request=youtube.videos().list(
-            part="snippet,ContentDetails,statistics",
+#Function to get Video Details
+
+def Video_Details(VideoIds):
+    Details_of_Videos=[]
+    for video_id in VideoIds:
+        request = YouTube.videos().list(
+            part='snippet,contentDetails,statistics',
             id=video_id
-        )
-        response=request.execute()
-
-        for item in response["items"]:
-            data=dict(Channel_Name=item['snippet']['channelTitle'],
-                      channel_Id=item['snippet']['channelId'],
-                      Video_Id=item['id'],
-                      Title=item['snippet']['title'],
-                      Tags=item['snippet'].get('tags'),
-                      Thumbnail=item['snippet']['thumbnails']['default']['url'],
-                      Description=item['snippet'].get('description'),
-                      Published_date=item['snippet']['publishedAt'],
-                      Duration=item['contentDetails']['duration'],
-                      Views=item['statistics'].get('viewCount'),
-                      Likes=item['statistics'].get('likeCount'),
-                      Comments=item['statistics'].get('commentCount'),
-                      Favorite_count=item['statistics']['favoriteCount'],
-                      Definition=item['contentDetails']['definition'],
-                      Caption_status=item['contentDetails']['caption']
-                     )
-            video_data.append(data)
-    return video_data
-       
-
-#get comment information
-def get_comment_info(video_Ids):
-    comment_data=[]
-    try:
-        for video_id in video_Ids:
-            request=youtube.commentThreads().list(
-                part="snippet",
-                videoId= video_id,
-                maxResults=50
             )
-            response=request.execute()
+        response3=request.execute()
 
-            for item in response['items']:
-                data=dict(comment_Id=item['snippet']['topLevelComment']['id'],
-                          video_Id=item['snippet']['topLevelComment']['snippet']['videoId'],
-                          Comment_Text=item['snippet']['topLevelComment']['snippet']['textDisplay'],
-                          Comment_Author=item['snippet']['topLevelComment']['snippet']['authorDisplayName'],
-                          Comment_published=item['snippet']['topLevelComment']['snippet']['publishedAt'])
+        for i in response3['items']:
+            needed_Videodata = dict(Channel_Name=i['snippet']['channelTitle'],
+                          Channel_Id=i['snippet']['channelId'],
+                          Video_Id=i['id'],
+                          Video_Title=i['snippet']['title'],
+                          Video_Description = i['snippet']['description'],
+                          Tags = i['snippet'].get('tags'),
+                          PublishedAt = i['snippet']['publishedAt'],
+                          View_Count = i['statistics'].get('viewCount'),
+                          Like_Count = i['statistics'].get('likeCount'),
+                          Dislike_Count =i['statistics'].get('dislikeCount'),
+                          Favorite_Count = i['statistics']['favoriteCount'], 
+                          Comment_Count = i['statistics'].get('commentCount'),
+                          Duration = i['contentDetails']['duration'],
+                          Thumbnail = i['snippet']['thumbnails']['default']['url'],
+                          Caption_Status = i['contentDetails']['caption'])
+            Details_of_Videos.append(needed_Videodata)
+    return Details_of_Videos
 
-                comment_data.append(data)
 
+#Function to get Comment details
+
+def Comment_Details(VideoIds):
+    Comment_details = []
+    try:
+        for k in VideoIds:
+            request = YouTube.commentThreads().list(
+                             part = "snippet",
+                             videoId = k,
+                             maxResults = 50)
+            response4=request.execute()
+
+            for i in response4['items']:
+                  needed_comment_data = dict(
+                         Video_id = i['snippet']['topLevelComment']['snippet']['videoId'],
+                         Comment_Id = i['snippet']['topLevelComment']['id'],
+                         Comment_Text = i['snippet']['topLevelComment']['snippet']['textDisplay'],
+                         Comment_Author = i['snippet']['topLevelComment']['snippet']['authorDisplayName'],
+                         Comment_PublishedAt = i['snippet']['topLevelComment']['snippet']['publishedAt'])
+
+            Comment_details.append(needed_comment_data)             
     except:
         pass
-    return comment_data
+    return Comment_details
 
 
-#get_playlist_details
+#Function to get Playlist Details
 
-def get_playlist_details(channel_id):
-        next_page_token=None
-        All_data=[]
-        while True:
-                request=youtube.playlists().list(
+def PlaylistDetails(Channel_id):
+    NextPageToken = None
+    Playlist_Details = []
+    while True:
+        request = YouTube.playlists().list(
                         part='snippet,contentDetails',
-                        channelId=channel_id,
-                        maxResults=50,
-                        pageToken=next_page_token
-                )
-                response=request.execute()
+                        channelId = Channel_id,      
+                        maxResults = 50 ,
+                        pageToken = NextPageToken
+        )
 
-                for item in response['items']:
-                        data=dict(Playlist_Id=item['id'],
-                                  Title=item['snippet']['title'],
-                                  Channel_Id=item['snippet']['channelId'],
-                                  Channel_Name=item['snippet']['channelTitle'],
-                                  PublishedAt=item['snippet']['publishedAt'],
-                                  Video_Count=item['contentDetails']['itemCount'])
-                        All_data.append(data)
+        response5 = request.execute()
 
-                next_page_token=response.get('nextPageToken')
-                if next_page_token is None:
-                        break
-        return All_data
-
-
-#UPLOAD TO MONGODB
-mongodb_url="mongodb://localhost:27017"
-client=pymongo.MongoClient(mongodb_url)
-db_name = "Youtube_Data" 
-db = client[db_name]
+        for i in response5['items']:
+                  needed_playlist_details = dict (Channel_Name = i['snippet']['channelTitle'],
+                               Channel_Id = i['snippet']['channelId'],
+                               Playlist_Id = i['id'],
+                               Playlist_Name = i['snippet']['title'],
+                               VideoCount = i['contentDetails']['itemCount'])
+                  Playlist_Details.append(needed_playlist_details) 
+        NextPageToken = response5.get('nextPageToken') 
+        if NextPageToken is None:
+                break     
+    return Playlist_Details            
 
 
-def channel_details(channel_id):
-    ch_details=get_channel_info(channel_id)
-    vi_ids=get_videos_ids(channel_id)
-    vi_details=get_video_info(vi_ids)
-    com_details=get_comment_info(vi_ids)
-    pl_details=get_playlist_details(channel_id)
+#MongoDB Connection
+
+client = pymongo.MongoClient("mongodb://localhost:27017/")
+db = client["Youtube_Project"]
+
+
+#Function to store details in MongoDB
+
+def TotalDetails(Channel_id):
+    Channel = YouTubeChannel_Id(Channel_id)
+    Playlist = PlaylistDetails(Channel_id)
+    VideoId = IdsofVideo(Channel_id)
+    Videodetails = Video_Details(VideoId)
+    Comment = Comment_Details(VideoId)
     
+    coll1 = db["ChannelDetails"]
+    coll1.insert_one({"Channel_Info":Channel,"Playlist_Info":Playlist,"Video_Info":Videodetails,"Comment_Info":Comment})
     
-    coll1=db["channel_details"]
-    coll1.insert_one({"channel_information":ch_details,"playlist_information":pl_details,
-                     "viedo_information":vi_details,"comment_information":com_details})
-    
-    return "upload completed successfully"
+    return "uploaded successfully in MongoDB"
 
 
-#Table creation for channels,playlist,viedos,comments
-def channels_table():
-    mydb=psycopg2.connect(host="localhost",
-                          user="postgres",
-                          password=1999,
-                          database="Youtubedata",
-                          port="5432")
-    cursor=mydb.cursor()
+#For Channel Table in SQL
 
-    drop_query='''drop table if exists channels'''
+def channeltable():
+    sqldb = psycopg2.connect(host="localhost",
+                            user="postgres",
+                            password="kavin",
+                            database="YouTube_Data",
+                            port="5432")
+    cursor=sqldb.cursor()
+
+    drop_query = '''drop table if exists channels'''
     cursor.execute(drop_query)
-    mydb.commit()
+    sqldb.commit()
 
     try:
-        create_query='''create table if not exists channels(Channel_Name varchar(2000),
-                                                            Channel_Id varchar(2000) primary key,
-                                                            Subscribers bigint,
-                                                            Views bigint,
-                                                            Total_Videos int,
+        create_query='''create table if not exists channels(Channel_Name varchar(255),
+                                                            Channel_Id varchar(255) primary key,
+                                                            Subscription_Count bigint,
+                                                            Channel_Views bigint,
                                                             Channel_Description text,
-                                                            Playlist_Id varchar(1000))'''
-
+                                                            Playlist_Id varchar(255),
+                                                            Total_Videos bigint)'''
         cursor.execute(create_query)
-        mydb.commit()
+        sqldb.commit()
     except:
-        print("channels table already created")
+        print("channel table created")
 
 
-    ch_list=[]
-    db=client["Youtube_Data"]
-    coll1=db["channel_details"]
-    for ch_data in coll1.find({},{"_id":0,"channel_information":1}):
-        ch_list.append(ch_data["channel_information"])
-    df=pd.DataFrame(ch_list)   
+    channel_list = []
+    db = client['Youtube_Project']
+    coll1 = db["ChannelDetails"]
+    for i in coll1.find({},{"_id":0,"Channel_Info":1}):
+        channel_list.append(i["Channel_Info"])
+    DF_channel_list = pd.DataFrame(channel_list)
 
-
-
-
-    for index,row in df.iterrows():
-        insert_query='''insert into channels(Channel_Name,
-                                             Channel_Id,
-                                             Subscribers,
-                                             Views,
-                                             Total_Videos,
-                                             Channel_Description,
-                                             Playlist_Id)
-
-                                             values(%s,%s,%s,%s,%s,%s,%s)'''
+    for index,row in DF_channel_list.iterrows():
+        insert_query = '''insert into channels(Channel_Name, 
+                                            Channel_Id, 
+                                            Subscription_Count, 
+                                            Channel_Views,
+                                            Channel_Description,
+                                            Playlist_Id,
+                                            Total_Videos)
+                                            
+                                            values(%s,%s,%s,%s,%s,%s,%s)'''
         values=(row['Channel_Name'],
                 row['Channel_Id'],
-                row['Subscribers'],
-                row['Views'],
-                row['Total_Videos'],
+                row['Subscription_Count'],
+                row['Channel_Views'],
                 row['Channel_Description'],
-                row['Playlist_Id'])
+                row['Playlist_Id'],
+                row['Total_Videos'])
 
         try:
             cursor.execute(insert_query,values)
-            mydb.commit()
+            sqldb.commit()
 
         except:
-            print("channels values are already inserted")
+            print("channel details inserted already")                 
+    
 
 
-def playlist_table():
-    mydb=psycopg2.connect(host="localhost",
-                          user="postgres",
-                          password=1999,
-                          database="Youtubedata",
-                          port="5432")
-    cursor=mydb.cursor()
+#For Playlist Table in SQL 
 
-    drop_query='''drop table if exists playlists'''
+def playlisttable():
+    sqldb = psycopg2.connect(host="localhost",
+                            user="postgres",
+                            password="kavin",
+                            database="YouTube_Data",
+                            port="5432")
+    cursor=sqldb.cursor()
+
+    drop_query = '''drop table if exists playlist'''
     cursor.execute(drop_query)
-    mydb.commit()
+    sqldb.commit()
+
+    try:
+        create_query='''create table if not exists playlist(Channel_Name varchar(255),
+                                                            Channel_Id varchar(255),
+                                                            Playlist_Id varchar(255)primary key,
+                                                            Playlist_Name varchar(255),
+                                                            VideoCount int)'''
+                                                            
+                                                            
+        cursor.execute(create_query)
+        sqldb.commit()
 
 
-    create_query='''create table if not exists playlists(Playlist_Id varchar(2000)primary key,
-                                                            Title varchar(2000),
-                                                            Channel_Id varchar(2000),
-                                                            Channel_Name varchar(2000),
-                                                            PublishedAt timestamp,
-                                                            Video_Count int)'''
-
-
-
-    cursor.execute(create_query)
-    mydb.commit()
-
-    
-    pl_list=[]
-    db=client["Youtube_Data"]
-    coll1=db["channel_details"]
-    for pl_data in coll1.find({},{"_id":0,"playlist_information":1}):
-        for i in range(len(pl_data["playlist_information"])):
-            pl_list.append(pl_data["playlist_information"][i])
-    df1=pd.DataFrame(pl_list)
-    
-    for index,row in df1.iterrows():
-        insert_query='''insert into playlists(Playlist_Id,
-                                             Title,
-                                             Channel_Id,
-                                             Channel_Name,
-                                             PublishedAt,
-                                             Video_Count
-                                             )
-
-                                             values(%s,%s,%s,%s,%s,%s)'''
-        values=(row['Playlist_Id'],
-                row['Title'],
-                row['Channel_Id'],
-                row['Channel_Name'],
-                row['PublishedAt'],
-                row['Video_Count'])
-                
-
-        
-        cursor.execute(insert_query,values)
-        mydb.commit()
-    
-
-def videos_table():
-    mydb=psycopg2.connect(host="localhost",
-                          user="postgres",
-                          password=1999,
-                          database="Youtubedata",
-                          port="5432")
-    cursor=mydb.cursor()
-
-    drop_query='''drop table if exists videos'''
-    cursor.execute(drop_query)
-    mydb.commit()
-
-
-    create_query='''create table if not exists videos(Channel_Name varchar(2000),
-                                                      channel_Id varchar(2000),
-                                                      Video_Id varchar(2000) primary key,
-                                                      Title varchar(5000),
-                                                      Tags text,
-                                                      Thumbnail varchar(5000),
-                                                      Description text,
-                                                      Published_date timestamp,
-                                                      Duration interval,
-                                                      Views bigint,
-                                                      Likes bigint,
-                                                      Comments int,
-                                                      Favorite_count int,
-                                                      Definition varchar(1000),
-                                                      Caption_status varchar(500)
-                                                      )'''
+    except:
+        print("playlist table created")
 
 
 
-    cursor.execute(create_query)
-    mydb.commit()
+    playlist_list = []
+    db = client['Youtube_Project']
+    coll1 = db["ChannelDetails"]
+    for pl in coll1.find({},{"_id":0,"Playlist_Info":1}):
+        for i in range(len(pl["Playlist_Info"])):
+            playlist_list.append(pl["Playlist_Info"][i])
+    DF_playlist_list = pd.DataFrame(playlist_list)
 
-
-    vi_list=[]
-    db=client["Youtube_Data"]
-    coll1=db["channel_details"]
-    for vi_data in coll1.find({},{"_id":0,"viedo_information":1}):
-        for i in range(len(vi_data["viedo_information"])):
-            vi_list.append(vi_data["viedo_information"][i])
-    df2=pd.DataFrame(vi_list)
-
-
-    for index,row in df2.iterrows():
-            insert_query='''insert into videos(Channel_Name,
-                                                  channel_Id,
-                                                  Video_Id,
-                                                  Title,
-                                                  Tags,
-                                                  Thumbnail,
-                                                  Description,
-                                                  Published_date,
-                                                  Duration,
-                                                  Views,
-                                                  Likes,
-                                                  Comments,
-                                                  Favorite_count,
-                                                  Definition,
-                                                  Caption_status
-                                                 )
-
-                                                 values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)'''
+    for index,row in DF_playlist_list.iterrows():
+            insert_query = '''insert into playlist(Channel_Name,
+                                                Channel_Id,
+                                                Playlist_Id,
+                                                Playlist_Name,
+                                                VideoCount)
+                                            
+                                                values(%s,%s,%s,%s,%s)'''
             values=(row['Channel_Name'],
-                    row['channel_Id'],
-                    row['Video_Id'],
-                    row['Title'],
-                    row['Tags'],
-                    row['Thumbnail'],
-                    row['Description'],
-                    row['Published_date'],
-                    row['Duration'],
-                    row['Views'],
-                    row['Likes'],
-                    row['Comments'],
-                    row['Favorite_count'],
-                    row['Definition'],
-                    row['Caption_status']
-                   )
+                    row['Channel_Id'],
+                    row['Playlist_Id'],
+                    row['Playlist_Name'],
+                    row['VideoCount'])
 
+            
+            cursor.execute(insert_query,values)
+            sqldb.commit()
+              
+
+
+#For Video Table in SQL
+
+def videotable():
+    sqldb = psycopg2.connect(host="localhost",
+                            user="postgres",
+                            password="kavin",
+                            database="YouTube_Data",
+                            port="5432")
+    cursor=sqldb.cursor()
+
+    drop_query = '''drop table if exists videos'''
+    cursor.execute(drop_query)
+    sqldb.commit()
+    
+    try:
+        create_query='''create table if not exists videos(Channel_Name varchar(255),
+                                                          Channel_Id varchar(255),
+                                                          Video_Id varchar(255),
+                                                          Video_Title varchar(255),
+                                                          Video_Description text,
+                                                          Tags text,
+                                                          PublishedAt timestamp,
+                                                          View_Count bigint,
+                                                          Like_Count bigint,
+                                                          Dislike_Count bigint,
+                                                          Favorite_Count bigint, 
+                                                          Comment_Count bigint,
+                                                          Duration interval,
+                                                          Thumbnail varchar(255),
+                                                          Caption_Status varchar(255))'''
+
+
+
+        cursor.execute(create_query)
+        sqldb.commit()
+      
+    except:
+        print("video table created")  
+    
+
+    
+
+
+    videodetails_list = []
+    db = client['Youtube_Project']
+    coll1 = db["ChannelDetails"]    
+    for vid in coll1.find({},{"_id":0,"Video_Info":1}):
+        for i in range(len(vid["Video_Info"])):
+            videodetails_list.append(vid["Video_Info"][i])
+    DF_videodetails_list = pd.DataFrame(videodetails_list)
+
+    for index,row in DF_videodetails_list.iterrows():
+            insert_query = '''insert into videos(Channel_Name,
+                                                    Channel_Id,
+                                                    Video_Id,
+                                                    Video_Title,
+                                                    Video_Description,
+                                                    Tags,
+                                                    PublishedAt,
+                                                    View_Count,
+                                                    Like_Count,
+                                                    Dislike_Count,
+                                                    Favorite_Count, 
+                                                    Comment_Count,
+                                                    Duration,
+                                                    Thumbnail,
+                                                    Caption_Status)
+
+                                                    values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)'''
+
+            values=(row['Channel_Name'],
+                    row['Channel_Id'],
+                    row['Video_Id'],
+                    row['Video_Title'],
+                    row['Video_Description'],
+                    row['Tags'],
+                    row['PublishedAt'],
+                    row['View_Count'],
+                    row['Like_Count'],
+                    row['Dislike_Count'],
+                    row['Favorite_Count'],
+                    row['Comment_Count'],
+                    row['Duration'],
+                    row['Thumbnail'],
+                    row['Caption_Status'])
 
 
             cursor.execute(insert_query,values)
-            mydb.commit()
+            sqldb.commit()
 
 
-def comments_table():
-    mydb=psycopg2.connect(host="localhost",
-                          user="postgres",
-                          password=1999,
-                          database="Youtubedata",
-                          port="5432")
-    cursor=mydb.cursor()
 
-    drop_query='''drop table if exists comments'''
+#For Comment Table in SQL
+
+def commenttable():
+    sqldb = psycopg2.connect(host="localhost",
+                            user="postgres",
+                            password="kavin",
+                            database="YouTube_Data",
+                            port="5432")
+    cursor=sqldb.cursor()
+
+    drop_query = '''drop table if exists comment'''
     cursor.execute(drop_query)
-    mydb.commit()
+    sqldb.commit()
+    
+    try:
+        create_query='''create table if not exists comment(Video_id varchar(255),
+                                                         Comment_Id varchar(255),
+                                                         Comment_Text text,
+                                                         Comment_Author varchar(255),
+                                                         Comment_PublishedAt timestamp)'''
+                                                            
+                                                            
+        cursor.execute(create_query)
+        sqldb.commit()
 
 
-    create_query='''create table if not exists comments(comment_Id varchar(10000) primary key,
-                                                        video_Id varchar(5000),
-                                                        Comment_Text text,
-                                                        Comment_Author varchar(1500),
-                                                        Comment_published timestamp
-                                                        )'''
+    except:
+        print("comment table created")
+        
+        
+    comment_list = []
+    db = client['Youtube_Project']
+    coll1 = db["ChannelDetails"]
+    for com in coll1.find({},{"_id":0,"Comment_Info":1}):
+        for i in range(len(com["Comment_Info"])):
+            comment_list.append(com["Comment_Info"][i])
+    DF_comment_list = pd.DataFrame(comment_list)
 
-
-
-    cursor.execute(create_query)
-    mydb.commit()
-
-
-    com_list=[]
-    db=client["Youtube_Data"]
-    coll1=db["channel_details"]
-    for com_data in coll1.find({},{"_id":0,"comment_information":1}):
-        for i in range(len(com_data["comment_information"])):
-            com_list.append(com_data["comment_information"][i])
-    df3=pd.DataFrame(com_list)
-
-
-    for index,row in df3.iterrows():
-            insert_query='''insert into comments(comment_Id,
-                                                 video_Id,
+    for index,row in DF_comment_list.iterrows():
+            insert_query = '''insert into comment(Video_id,
+                                                 Comment_Id,
                                                  Comment_Text,
                                                  Comment_Author,
-                                                 Comment_published
-                                                )
-
-                                                 values(%s,%s,%s,%s,%s)'''
-            values=(row['comment_Id'],
-                    row['video_Id'],
+                                                 Comment_PublishedAt)
+                                            
+                                                values(%s,%s,%s,%s,%s)'''
+            
+            values=(row['Video_id'],
+                    row['Comment_Id'],
                     row['Comment_Text'],
                     row['Comment_Author'],
-                    row['Comment_published']
-                   )
+                    row['Comment_PublishedAt'])
 
-
-
+            
             cursor.execute(insert_query,values)
-            mydb.commit()
+            sqldb.commit()  
 
 
 
-def tables():
-    channels_table()
-    playlist_table()
-    videos_table()
-    comments_table()
-    
-    return "Tables created successfully"
+#Function for all Tables
+
+def sqltables():
+    channeltable()
+    playlisttable()
+    videotable()
+    commenttable()
+
+    return "sqltables created"
+
+SQLTables=sqltables()
 
 
-def show_channels_table():
-    ch_list=[]
-    db=client["Youtube_Data"]
-    coll1=db["channel_details"]
-    for ch_data in coll1.find({},{"_id":0,"channel_information":1}):
-        ch_list.append(ch_data["channel_information"])
-    df=st.dataframe(ch_list)
-    
-    return df
+#st channel
+
+def viewchanneltable():
+    channel_list = []
+    db = client['Youtube_Project']
+    coll1 = db["ChannelDetails"]
+    for i in coll1.find({},{"_id":0,"Channel_Info":1}):
+        channel_list.append(i["Channel_Info"])
+    df_channel_list=st.dataframe(channel_list)
+    return df_channel_list
+       
+
+#st playlist
+
+def viewplaylisttable():       
+    playlist_list = []
+    db = client['Youtube_Project']
+    coll1 = db["ChannelDetails"]
+    for pl in coll1.find({},{"_id":0,"Playlist_Info":1}):
+            for i in range(len(pl["Playlist_Info"])):
+                playlist_list.append(pl["Playlist_Info"][i])
+    df_playlist = st.dataframe(playlist_list)
+    return df_playlist
 
 
-def show_playlist_table():
-    pl_list=[]
-    db=client["Youtube_Data"]
-    coll1=db["channel_details"]
-    for pl_data in coll1.find({},{"_id":0,"playlist_information":1}):
-        for i in range(len(pl_data["playlist_information"])):
-            pl_list.append(pl_data["playlist_information"][i])
-    df1=st.dataframe(pl_list)
-    
-    return df1
+#st video
+
+def viewvideotable():
+    videodetails_list = []
+    db = client['Youtube_Project']
+    coll1 = db["ChannelDetails"]    
+    for vid in coll1.find({},{"_id":0,"Video_Info":1}):
+        for i in range(len(vid["Video_Info"])):
+            videodetails_list.append(vid["Video_Info"][i])
+    df_videodetails = st.dataframe(videodetails_list)
+    return df_videodetails
 
 
-def show_videos_table(): 
-    vi_list=[]
-    db=client["Youtube_Data"]
-    coll1=db["channel_details"]
-    for vi_data in coll1.find({},{"_id":0,"viedo_information":1}):
-        for i in range(len(vi_data["viedo_information"])):
-            vi_list.append(vi_data["viedo_information"][i])
-    df2=st.dataframe(vi_list)
-    
-    return df2
+#st Comment
+
+def viewcommenttable():
+    comment_list = []
+    db = client['Youtube_Project']
+    coll1 = db["ChannelDetails"]
+    for com in coll1.find({},{"_id":0,"Comment_Info":1}):
+        for i in range(len(com["Comment_Info"])):
+            comment_list.append(com["Comment_Info"][i])
+    df_comment = st.dataframe(comment_list)
+    return df_comment
 
 
-def show_comments_table():
-    com_list=[]
-    db=client["Youtube_Data"]
-    coll1=db["channel_details"]
-    for com_data in coll1.find({},{"_id":0,"comment_information":1}):
-        for i in range(len(com_data["comment_information"])):
-            com_list.append(com_data["comment_information"][i])
-    df3=st.dataframe(com_list)
-    
-    return df3
+#Streamlit code
 
 
-
-#streamlit 
+st.title(":red[YouTube Data Harvesting and Warehousing ]")
 
 with st.sidebar:
-    st.title(":blue[YOUTUBE DATA HARVESTING]")
-    st.header("Data is Anywhere and Everywhere")
-    st.caption("Python Scripting")
-    st.caption("Data Collection")
-    st.caption("MongoDB")
-    st.caption("API Intergration")
-    st.caption("Data Management using MongoDB and SQL")
-    
-channel_id=st.text_input("Enter the channel ID")    
+     st.title(":red[Project Module]")
+     st.header(":blue[KEY FRAMEWORK]")
+     st.caption('Python ScriptWork')
+     st.caption('Data Extraction by API')
+     st.caption('DB in MongoDB')
+     st.caption('DBM using SQL')
+     st.caption('Streamlit Show')
 
-if st.button("Collect & Store data"):
-    ch_ids=[]
-    db=client["Youtube_Data"]
-    coll1=db["channel_details"]
-    for ch_data in coll1.find({},{"_id":0,"channel_information":1}):
-        ch_ids.append(ch_data["channel_information"]["Channel_Id"])
-        
-    if channel_id in ch_ids:
-        st.success("Channel Details of the given channel id already exists")
-        
+
+Channel_ID = st.text_input("Enter the Channel ID")
+
+if st.button("Get and Store in DataBase"):
+    channel_ids=[]
+    db = client['Youtube_Project']
+    coll1 = db["ChannelDetails"]
+    for i in coll1.find({},{"_id":0,"Channel_Info":1}):
+        channel_ids.append(i["Channel_Info"]["Channel_Id"])
+
+    if Channel_ID in channel_ids:
+        st.success("Channel Data already exists")
     else:
-        insert=channel_details(channel_id)
-        st.success(insert)
-        
-if st.button("Migrate to sql"):
-    Table=tables()
-    st.success(Table)
+        insert=TotalDetails(Channel_ID)
+        st.success(insert) 
+
+if st.button("Fetch in SQL"):
+    SQLTables=sqltables()
+    st.success(SQLTables) 
+
+show_table=st.radio("SELECT TO VIEW A TABLE",("CHANNELS","PLAYLISTS","VIDEOS","COMMENTS"))
+
+if show_table=="CHANNELS":
+    viewchanneltable()
+
+elif show_table=="PLAYLISTS":
+    viewplaylisttable()
+
+elif show_table=="VIDEOS":
+    viewvideotable() 
     
-show_table=st.radio("SELECT THE TABLE FOR VIEW",("CHANNELS","PLAYLISTS","VIDEOS","COMMENTS"))
+elif show_table=="COMMENTS":
+    viewcommenttable()
 
-if show_table =="CHANNELS":
-    show_channels_table()
-    
-elif show_table =="PLAYLISTS":    
-    show_playlist_table() 
-    
-elif show_table =="VIDEOS":    
-    show_videos_table()    
 
-elif show_table =="COMMENTS":    
-    show_comments_table()
-    
 
-#sql connecti0n
+#10 Queries
 
-mydb=psycopg2.connect(host="localhost",
-                      user="postgres",
-                      password=1999,
-                      database="Youtubedata",
-                      port="5432")
-cursor=mydb.cursor()
-
+sqldb = psycopg2.connect(host="localhost",
+                        user="postgres",
+                        password="kavin",
+                        database="YouTube_Data",
+                        port="5432")
+cursor=sqldb.cursor()
